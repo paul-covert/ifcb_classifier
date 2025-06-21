@@ -1,3 +1,6 @@
+# Ignore MacOS-specific files
+.DS_Store
+
 # Ignore PyCharm IDE files
 .idea
 
