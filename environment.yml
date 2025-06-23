@@ -8,11 +8,17 @@ dependencies:
   - pytorch
   - torchvision
   - pytorch-lightning
+  - Pillow
   - scikit-learn
+  - scikit-image
   - pandas
-  - scipy
-  - numpy
   - h5py
+  - scipy<1.9.2
+  - numpy
+  - pyyaml
+  - requests
+  - rectpack
+  - pysmb
   - pip
-- pip:
-  - git+https://github.com/joefutrelle/pyifcb.git
+  - pip:
+    - git+https://github.com/joefutrelle/pyifcb.git
