@@ -1,0 +1,25 @@
+name: ifcbnn
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pytorch
+  - torchvision
+  - pytorch-lightning
+  - Pillow
+  - scikit-learn
+  - scikit-image
+  - pandas
+  - h5py
+  - scipy
+  - numpy
+  - pyyaml
+  - requests
+  - rectpack
+  - pysmb
+  - smbprotocol
+  - pip
+  - pip:
+    - git+https://github.com/joefutrelle/pyifcb@v1.2.1
