@@ -13,12 +13,13 @@ dependencies:
   - scikit-image
   - pandas
   - h5py
-  - scipy<1.9.2
+  - scipy
   - numpy
   - pyyaml
   - requests
   - rectpack
   - pysmb
+  - smbprotocol
   - pip
   - pip:
-    - git+https://github.com/joefutrelle/pyifcb.git
+    - git+https://github.com/joefutrelle/pyifcb@v1.2.1
