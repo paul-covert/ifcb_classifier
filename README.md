@@ -5,3 +5,5 @@ This repo is a fork of an image classifying program designed to be trained on pl
 
 For details on usage, please see [this repository's wiki](https://github.com/WHOIGit/ifcb_classifier/wiki)
 
+## Changes to original code
+
