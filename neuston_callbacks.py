@@ -17,7 +17,7 @@ from neuston_data import IfcbBinDataset
 
 ## Training ##
 
-class SaveValidationResults(ptl.callbacks.base.Callback):
+class SaveValidationResults(ptl.callbacks.Callback):
 
     def __init__(self, outdir, outfile, series, best_only=True):
         self.outdir = outdir
@@ -27,6 +27,7 @@ class SaveValidationResults(ptl.callbacks.base.Callback):
 
     def on_validation_end(self, trainer, pl_module):
         log = trainer.callback_metrics # flattened dict
+        unlog = pl_module.unloggable_dict
         #log: val_loss input_classes output_classes input_srcs outputs epoch best train_loss f1_macro f1_weighted
 
         if not(log['best'] or not self.best_only):
@@ -45,11 +46,14 @@ class SaveValidationResults(ptl.callbacks.base.Callback):
         training_image_basenames = [os.path.splitext(os.path.basename(img))[0] for img in training_image_fullpaths]
         training_classes = train_dataset.targets
 
-        output_scores = log['outputs']
+        #output_scores = log['outputs']
+        output_scores = unlog['outputs']
         output_winscores = np.max(output_scores, axis=1)
         output_classes = np.argmax(output_scores, axis=1)
-        input_classes = log['input_classes']
-        image_fullpaths = log['input_srcs']
+        #input_classes = log['input_classes']
+        input_classes = unlog['input_classes']
+        #image_fullpaths = log['input_srcs']
+        image_fullpaths = unlog['input_srcs']
         image_basenames = [os.path.splitext(os.path.basename(img))[0] for img in image_fullpaths]
 
         assert output_scores.shape[0] == len(input_classes), 'wrong number inputs-to-outputs'
@@ -272,7 +276,7 @@ def _save_run_results(outfile, results):
     if outfile.endswith('.h5'): _save_run_results_hdf(outfile, results)
 
 
-class SaveTestResults(ptl.callbacks.base.Callback):
+class SaveTestResults(ptl.callbacks.Callback):
 
     def __init__(self, outdir, outfile, timestamp):
         self.outdir = outdir
@@ -281,7 +285,8 @@ class SaveTestResults(ptl.callbacks.base.Callback):
 
     def on_test_end(self, trainer, pl_module):
 
-        RRs = trainer.callback_metrics['RunResults']
+        #RRs = trainer.callback_metrics['RunResults']
+        RRs = pl_module.unloggable_dict['RunResults']
         # RunResult rr: inputs, outputs, bin_id
         if not isinstance(RRs,list):
             RRs = [RRs]

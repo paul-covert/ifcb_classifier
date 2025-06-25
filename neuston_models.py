@@ -46,7 +46,8 @@ def get_namebrand_model(model_name, num_o_classes, pretrained=False):
 
 
 class NeustonModel(ptl.LightningModule):
-    def __init__(self, hparams):
+    #def __init__(self, hparams):
+    def __init__(self, hparams, training_loader=None, validation_loader=None, testing_loader=None):
         super().__init__()
 
         if isinstance(hparams,dict):
@@ -59,6 +60,15 @@ class NeustonModel(ptl.LightningModule):
         self.best_val_loss = np.inf
         self.best_epoch = 0
         self.agg_train_loss = 0.0
+        
+        # Holly's additions
+        self.train_steps = []
+        self.validation_steps = []
+        self.test_steps = []
+        self.training_loader = training_loader
+        self.validation_loader = validation_loader
+        self.testing_loader = testing_loader
+        self.unloggable_dict = {}
 
     def configure_optimizers(self):
         return Adam(self.parameters(), lr=0.001)
@@ -83,10 +93,14 @@ class NeustonModel(ptl.LightningModule):
         outputs = self.forward(input_data)
         batch_loss = self.loss(input_classes, outputs)
         self.agg_train_loss += batch_loss.item()
+        self.train_steps.append(dict(loss=batch_loss))
         return dict(loss=batch_loss)
 
-    def training_epoch_end(self, steps):
-        train_loss = torch.stack([batch['loss'] for batch in steps]).sum().item()
+    #def training_epoch_end(self, steps):
+    def on_train_epoch_end(self):
+        #train_loss = torch.stack([batch['loss'] for batch in steps]).sum().item()
+        train_loss = torch.stack([batch['loss'] for batch in self.train_steps]).sum().item()
+        self.train_steps = []
         #print('training_epoch_end: self.agg_train_loss={:.5f}, train_loss={:.5f}, DIFF={:.9f}'.format(self.agg_train_loss, train_loss, self.agg_train_loss-train_loss), end='\n\n')
         #return dict(train_loss=train_loss)
 
@@ -97,16 +111,24 @@ class NeustonModel(ptl.LightningModule):
         val_batch_loss = self.loss(input_classes, outputs)
         outputs = outputs.logits if isinstance(outputs,InceptionOutputs) else outputs
         outputs = softmax(outputs,dim=1)
-        return dict(val_batch_loss=val_batch_loss,
+        #return dict(val_batch_loss=val_batch_loss,
+        #            val_outputs=outputs,
+        #            val_input_classes=input_classes,
+        #            val_input_srcs=input_src)
+        outp = dict(val_batch_loss=val_batch_loss,
                     val_outputs=outputs,
                     val_input_classes=input_classes,
                     val_input_srcs=input_src)
+        self.validation_steps.append(outp)
+        return outp
 
-    def validation_epoch_end(self, steps):
+    #def validation_epoch_end(self, steps):
+    def on_validation_epoch_end(self):
         print(end='\n\n') # give space for progress bar
         if self.current_epoch==0: self.best_val_loss = np.inf  # takes care of any lingering val_loss from sanity checks
 
-        validation_loss = torch.stack([batch['val_batch_loss'] for batch in steps]).sum()
+        #validation_loss = torch.stack([batch['val_batch_loss'] for batch in steps]).sum()
+        validation_loss = torch.stack([batch['val_batch_loss'] for batch in self.validation_steps]).sum()
         #eoe0 = 'validation_epoch_end: best_val_loss={}, curr_val_loss={}, curr<best={}, curr-best (neg is good)={}'
         #eoe0 = eoe0.format(self.best_val_loss, validation_loss.item(), validation_loss.item()<self.best_val_loss, validation_loss.item()-self.best_val_loss)
         #print(eoe0)
@@ -115,10 +137,13 @@ class NeustonModel(ptl.LightningModule):
             self.best_val_loss = validation_loss.item()
             self.best_epoch = self.current_epoch
 
-        outputs = torch.cat([batch['val_outputs'] for batch in steps],dim=0).detach().cpu().numpy()
+        #outputs = torch.cat([batch['val_outputs'] for batch in steps],dim=0).detach().cpu().numpy()
+        outputs = torch.cat([batch['val_outputs'] for batch in self.validation_steps],dim=0).detach().cpu().numpy()
         output_classes = np.argmax(outputs, axis=1)
-        input_classes = torch.cat([batch['val_input_classes'] for batch in steps],dim=0).detach().cpu().numpy()
-        input_srcs = [item for sublist in [batch['val_input_srcs'] for batch in steps] for item in sublist]
+        #input_classes = torch.cat([batch['val_input_classes'] for batch in steps],dim=0).detach().cpu().numpy()
+        input_classes = torch.cat([batch['val_input_classes'] for batch in self.validation_steps],dim=0).detach().cpu().numpy()
+        #input_srcs = [item for sublist in [batch['val_input_srcs'] for batch in steps] for item in sublist]
+        input_srcs = [item for sublist in [batch['val_input_srcs'] for batch in self.validation_steps] for item in sublist]
 
         f1_weighted = metrics.f1_score(input_classes, output_classes, average='weighted')
         f1_macro = metrics.f1_score(input_classes, output_classes, average='macro')
@@ -134,10 +159,14 @@ class NeustonModel(ptl.LightningModule):
         self.log('val_loss', validation_loss, on_epoch=True)
 
         # csv_logger logger hacked to not include these in epochs.csv output
-        self.log('input_classes', input_classes, on_epoch=True)
-        self.log('output_classes', output_classes, on_epoch=True)
-        self.log('input_srcs', input_srcs, on_epoch=True)
-        self.log('outputs', outputs, on_epoch=True)
+        #self.log('input_classes', input_classes, on_epoch=True)
+        #self.log('output_classes', output_classes, on_epoch=True)
+        #self.log('input_srcs', input_srcs, on_epoch=True)
+        #self.log('outputs', outputs, on_epoch=True)
+        self.unloggable_dict['input_classes'] = input_classes
+        self.unloggable_dict['output_classes'] = output_classes
+        self.unloggable_dict['input_srcs'] = input_srcs
+        self.unloggable_dict['outputs'] = outputs
 
         # these will apppear in epochs.csv, but are not used by callbacks
         self.log('f1_macro',f1_macro, on_epoch=True)
@@ -145,6 +174,8 @@ class NeustonModel(ptl.LightningModule):
 
         # Cleanup
         self.agg_train_loss = 0.0
+        
+        self.validation_steps = []
 
         return dict(hiddens=dict(outputs=outputs))
 
@@ -154,14 +185,19 @@ class NeustonModel(ptl.LightningModule):
         outputs = self.forward(input_data)
         outputs = outputs.logits if isinstance(outputs,InceptionOutputs) else outputs
         outputs = softmax(outputs, dim=1)
-        return dict(test_outputs=outputs, test_srcs=input_srcs)
+        #return dict(test_outputs=outputs, test_srcs=input_srcs)
+        outp = dict(test_outputs=outputs, test_srcs=input_srcs)
+        self.test_steps.append(outp)
+        return outp
 
-    def test_epoch_end(self, steps):
+    #def test_epoch_end(self, steps):
+    def on_test_epoch_end(self):
 
         # handle single and multiple test dataloaders
         datasets = self.test_dataloader()
         if isinstance(datasets, list): datasets = [ds.dataset for ds in datasets]
         else: datasets = [datasets.dataset]
+        steps = self.test_steps
         if isinstance(steps[0],dict):
             steps = [steps]
 
@@ -176,8 +212,19 @@ class NeustonModel(ptl.LightningModule):
                 input_obj = dataset.input_src  # a path string
             rr = self.RunResults(inputs=images, outputs=outputs, input_obj=input_obj)
             RRs.append(rr)
-        self.log('RunResults',RRs)
-        #return dict(RunResults=RRs)
+        #self.log('RunResults',RRs)
+        self.unloggable_dict['RunResults'] = RRs
+        self.test_steps = []
+        #return dict(RunResults=RRs) # Note from Holly: I did not comment this out, it came like this.
+    
+    def train_dataloader(self):
+        return self.training_loader
+
+    def val_dataloader(self):
+        return self.validation_loader
+        
+    def test_dataloader(self):
+        return self.testing_loader
 
     class RunResults:
         def __init__(self, inputs, outputs, input_obj):

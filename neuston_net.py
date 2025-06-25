@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 """the main thing"""
 
+# Note:
+# This is a modified version of the ifcb_classifier that was adapted to work with the latest version of PyTorch, as the current
+# "official" version is quite out of date and does not work on Windows.
+# Variables and keywords were simply modified up to the point where the program could run with no errors.
+# There are some warnings, but this version does not attempt to avert them, as this version is for comparing to the original.
+# - Holly
+
 # built in imports
 from shutil import copyfile
 import argparse
@@ -99,20 +106,22 @@ def do_training(args):
     os.makedirs(chkpt_path, exist_ok=True)
     callbacks.append(ModelCheckpoint(dirpath=chkpt_path, monitor='val_loss'))
     trainer = Trainer(deterministic=True, logger=logger,
-                      gpus=len(args.gpus) if args.gpus else None,
+                      #gpus=len(args.gpus) if args.gpus else None,
                       max_epochs=args.emax, min_epochs=args.emin,
-                      checkpoint_callback=True,
+                      #checkpoint_callback=True,
                       callbacks=callbacks,
                       num_sanity_val_steps=0
                       )
 
     # Setup Model
-    classifier = NeustonModel(args)
+    #classifier = NeustonModel(args)
+    classifier = NeustonModel(args, training_loader, validation_loader)
     # TODO setup dataloaders in the model, allowing auto-batch-size optimization
     # see https://pytorch-lightning.readthedocs.io/en/stable/training_tricks.html#auto-scaling-of-batch-size
 
     # Do Training
-    trainer.fit(classifier, train_dataloader=training_loader, val_dataloaders=validation_loader)
+    #trainer.fit(classifier, train_dataloader=training_loader, val_dataloaders=validation_loader)
+    trainer.fit(classifier)
 
     # Copy best model
     checkpoint_path = trainer.checkpoint_callback.best_model_path
@@ -190,8 +199,8 @@ def do_run(args):
 
     # create trainer
     trainer = Trainer(deterministic=True,
-                      gpus=len(args.gpus) if args.gpus else None,
-                      logger=False, checkpoint_callback=False,
+                      #gpus=len(args.gpus) if args.gpus else None,
+                      logger=False, #checkpoint_callback=False,
                       callbacks=run_results_callbacks,
                       )
 
@@ -305,7 +314,9 @@ def do_run(args):
         image_loader = DataLoader(image_dataset, batch_size=args.batch_size,
                                   pin_memory=True, num_workers=args.loaders)
 
-        trainer.test(classifier,test_dataloaders=image_loader)
+        #trainer.test(classifier,test_dataloaders=image_loader)
+        classifier.testing_loader = image_loader
+        trainer.test(classifier)
 
 
 def argparse_nn(parser=None):
@@ -428,7 +439,8 @@ def argparse_nn_runtimeparams(args):
     # So if gpus == [3,4] then device "cuda:0" == GPU no. 3
     #                      and device "cuda:1" == GPU no. 4
     if torch.cuda.is_available():
-        args.gpus = [int(gpu) for gpu in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
+        #args.gpus = [int(gpu) for gpu in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
+        args.gpus = [int(os.environ['PYTORCH_NVML_BASED_CUDA_CHECK'])] # This might not be correct, but it works.
     else: args.gpus = None
 
     # parse args.outdir value
