@@ -7,7 +7,7 @@ For details on usage, please see [the WHOIGit repository wiki](https://github.co
 
 ## Changes to original code
 
-## Comparison of v2025.07a1 (not released as of 2025.06.24) with v0.3.1
+## Comparison of v2025.07a1 with v0.3.1
 
 To confirm successful migration to PyTorch 2.x, comparison between a model trained with the updated code and the ```legacy_pytorch_1.7.1``` was made.  
 
