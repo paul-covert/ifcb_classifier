@@ -7,3 +7,6 @@ For details on usage, please see [the WHOIGit repository wiki](https://github.co
 
 ## Changes to original code
 
+## Comparison of v2.0 (not yet released - 2025.06.24) with v1.3.1
+
+
