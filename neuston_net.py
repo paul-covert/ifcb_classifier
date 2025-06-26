@@ -4,8 +4,9 @@
 # Note:
 # This is a modified version of the ifcb_classifier that was adapted to work with the latest version of PyTorch, as the current
 # "official" version is quite out of date and does not work on Windows.
-# Variables and keywords were simply modified up to the point where the program could run with no errors.
-# There are some warnings, but this version does not attempt to avert them, as this version is for comparing to the original.
+# Variables and parameters were simply modified up to the point where the program could run with no errors.
+# Additionally, the "accelerator" and "devices" parameters were added to the Trainers and "persistent_workers" was added and set
+# to True for the dataloaders.
 # - Holly
 
 # built in imports
@@ -84,10 +85,10 @@ def do_training(args):
     # TODO add to args classes removed by class_min and skipped/combined from class_config
 
     print('Loading Training Dataloader...')
-    training_loader = DataLoader(training_dataset, pin_memory=True, shuffle=True,
+    training_loader = DataLoader(training_dataset, pin_memory=True, shuffle=True, persistent_workers=True,
                                  batch_size=args.batch_size, num_workers=args.loaders)
     print('Loading Validation Dataloader...')
-    validation_loader = DataLoader(validation_dataset, pin_memory=True, shuffle=False,
+    validation_loader = DataLoader(validation_dataset, pin_memory=True, shuffle=False, persistent_workers=True,
                                    batch_size=args.batch_size, num_workers=args.loaders)
 
     # Gerry Rig Logger
@@ -107,6 +108,7 @@ def do_training(args):
     callbacks.append(ModelCheckpoint(dirpath=chkpt_path, monitor='val_loss'))
     trainer = Trainer(deterministic=True, logger=logger,
                       #gpus=len(args.gpus) if args.gpus else None,
+                      accelerator='gpu', devices=1,
                       max_epochs=args.emax, min_epochs=args.emin,
                       #checkpoint_callback=True,
                       callbacks=callbacks,
@@ -200,6 +202,7 @@ def do_run(args):
     # create trainer
     trainer = Trainer(deterministic=True,
                       #gpus=len(args.gpus) if args.gpus else None,
+                      accelerator='gpu', devices=1,
                       logger=False, #checkpoint_callback=False,
                       callbacks=run_results_callbacks,
                       )
@@ -260,7 +263,7 @@ def do_run(args):
                     continue
 
             bin_dataset = IfcbBinDataset(bin_fileset, classifier.hparams.resize, classifier.hparams.img_norm)
-            image_loader = DataLoader(bin_dataset, batch_size=args.batch_size,
+            image_loader = DataLoader(bin_dataset, batch_size=args.batch_size,  persistent_workers=True,
                                       pin_memory=True, num_workers=args.loaders)
 
             # skip empty bins
