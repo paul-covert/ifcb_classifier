@@ -7,8 +7,17 @@ For details on usage, please see [the WHOIGit repository wiki](https://github.co
 
 ## Changes to original code
 
-## Comparison of v2025.07a1 with v0.3.1
+- "ptl.callbacks.base.Callback" replaced with "ptl.callbacks.Callback".
+- Loaders are now used as parameters for the NeustonModel object, as they don't work as parameters when the trainer fits the model anymore.
+- 'input_classes', 'output_classes', 'input_srcs' and 'outputs' are now placed into a separate dictionary object ('unloggable_dict') instead of being logged, as logging lists doesn't work anymore.
+- 'training_epoch_end' changed to 'on_train_epoch_end' as the lingo was out of date (ditto for validation and testing).
+- 'steps' now stored in separate lists and cleared after their respective 'on_epoch_end' function is called, as said function no longer accepts 'steps' as a parameter.
+- 'gpus' and 'checkpoint_callback' removed as parameters from the Trainers, as they are no longer valid for whatever reason.
+- Added parameters to Trainers: accelerator='gpu', devices=1
+- Added parameter to dataloaders: persistent_workers=True
 
-To confirm successful migration to PyTorch 2.x, comparison between a model trained with the updated code and the ```legacy_pytorch_1.7.1``` was made.  
+## Comparison of v2025.07a2 with v0.3.1
+
+To confirm successful migration to PyTorch 2.x, comparison between a model trained with the updated code and the ```legacy_pytorch_1.7.1``` was made. (TBD)
 
 
