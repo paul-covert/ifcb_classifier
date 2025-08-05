@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """the main thing"""
 
+# Version: 1.02
+
 # Note:
 # This is a modified version of the ifcb_classifier that was adapted to work with the latest version of PyTorch, as the current
 # "official" version is quite out of date and does not work on Windows.

@@ -63,18 +63,26 @@ def write_csv(outfile, rows):
             print(','.join(row))
 
 
+# Slightly modified by Holly
 def make_dataset_config(args):
 
     # parsing datasets
     datasets = []
     priorities = []
     for src in args.dataset:
-        src = src.split(':',1)
-        if len(src)==2:
-            datasets.append(src[1])
-            priorities.append(int(src[0]))
+        split = src.split(':',1)
+        startsWithInt = False
+        try:
+            int(split[0])
+            startsWithInt = True
+        except:
+            pass
+        if len(split)==2 and startsWithInt:
+            datasets.append(split[1])
+            priorities.append(int(split[0]))
         else:
-            datasets.append(src[0])
+            #datasets.append(split[0])
+            datasets.append(src)
             priorities.append(0)
     priorities = [p if p>0 else max(priorities)+1 for p in priorities]
 
