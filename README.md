@@ -1,7 +1,6 @@
 # IFCB Classifier
 
-This repo is a fork of an image classifying program designed to be trained on plankton images from an IFCB datasource.  It has been migrated to the modern PyTorch and Lightning packages.  This update allows for deployment on all modern operating systems (Linux, Windows, MacOS) and GPU architectures (CUDA, MPS).  The SLURM functionality has been removed, as we have no way to test it.  In all other respects, the code is the same as the original version.  This can be verified by comparing results of tests run with the current and ```legacy_pytorch_1.7.1``` branches.
-
+This repository is a fork of the original WHOIGit ibcb_classifier repo, an image classifying program designed to be trained on plankton images from an IFCB datasource.  The ```legacy``` branch is identical to WHOIGit/ifcb_classifier v0.3.1, with the exception that the dependencies have been updated to rely on conda-forge channels only.  The ```main``` branch contains the code that has been migrated to the modern PyTorch packages (pytorch>=2.5.0, etc.).  In addition, he SLURM functionality has been removed.
 
 For details on usage, please see [the WHOIGit repository wiki](https://github.com/WHOIGit/ifcb_classifier/wiki)
 
