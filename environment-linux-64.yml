@@ -18,5 +18,5 @@ dependencies:
   - rectpack
   - pysmb
   - pip
-- pip:
-  - ../pyifcb
+  - pip:
+    - ./pyifcb
