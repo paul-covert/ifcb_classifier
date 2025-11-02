@@ -6,7 +6,6 @@ dependencies:
   - pytorch=2.8.0=cuda129_mkl_py312_hda324a2_301
   - torchvision=0.24.0=cuda129_py312_h9f56bbf_2
   - pytorch-lightning=2.5.5
-  - Pillow=11.1.0
   - scikit-learn
   - scipy=1.13.1
   - pandas=2.2.3
