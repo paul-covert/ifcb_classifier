@@ -1,0 +1,9 @@
+scipy<1.9.2
+pandas
+h5py
+requests
+Pillow
+rectpack
+scikit-image
+pysmb
+pyyaml
