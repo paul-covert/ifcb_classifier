@@ -4,6 +4,9 @@
 # ignore pycache
 __pycache__
 
+# ignore MacOS-specific files
+.DS_Store
+
 # other
 slurm-logs/*
 batches/*
