@@ -1,0 +1,12 @@
+git+https://github.com/joefutrelle/pyifcb.git
+torch
+pytorch-lightning
+torchvision
+argparse
+datetime
+pandas
+h5py
+scikit-learn
+scipy
+pillow
+numpy==1.26.4
