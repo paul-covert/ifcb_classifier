@@ -103,6 +103,7 @@ def make_dataset_config(args):
         row = [cls] + defaults
         rows.append(row)
     write_csv(args.outfile,[header]+rows)
+    print("DONE: "+args.outfile);
 
 
 

@@ -18,10 +18,13 @@ import ifcb
 # project imports #
 from neuston_data import IfcbBinDataset
 
+# Holly imports
+from torchvision.models import Inception_V3_Weights
+
 
 def get_namebrand_model(model_name, num_o_classes, pretrained=False):
     if model_name == 'inception_v3':
-        model = MODEL_MODULE.inception_v3(pretrained)  #, num_classes=num_o_classes, aux_logits=False)
+        model = MODEL_MODULE.inception_v3(pretrained, weights=Inception_V3_Weights.DEFAULT)  #, num_classes=num_o_classes, aux_logits=False)
         model.AuxLogits.fc = nn.Linear(model.AuxLogits.fc.in_features, num_o_classes)
         model.fc = nn.Linear(model.fc.in_features, num_o_classes)
     elif model_name == 'alexnet':
@@ -46,10 +49,10 @@ def get_namebrand_model(model_name, num_o_classes, pretrained=False):
 
 
 class NeustonModel(ptl.LightningModule):
-    #def __init__(self, hparams):
     def __init__(self, hparams, training_loader=None, validation_loader=None, testing_loader=None):
         super().__init__()
-
+    
+        #print("HOLLY: INIT NEUSTONMODEL")
         if isinstance(hparams,dict):
             hparams = argparse.Namespace(**hparams)
         self.save_hyperparameters(hparams)
@@ -111,10 +114,6 @@ class NeustonModel(ptl.LightningModule):
         val_batch_loss = self.loss(input_classes, outputs)
         outputs = outputs.logits if isinstance(outputs,InceptionOutputs) else outputs
         outputs = softmax(outputs,dim=1)
-        #return dict(val_batch_loss=val_batch_loss,
-        #            val_outputs=outputs,
-        #            val_input_classes=input_classes,
-        #            val_input_srcs=input_src)
         outp = dict(val_batch_loss=val_batch_loss,
                     val_outputs=outputs,
                     val_input_classes=input_classes,
@@ -185,7 +184,6 @@ class NeustonModel(ptl.LightningModule):
         outputs = self.forward(input_data)
         outputs = outputs.logits if isinstance(outputs,InceptionOutputs) else outputs
         outputs = softmax(outputs, dim=1)
-        #return dict(test_outputs=outputs, test_srcs=input_srcs)
         outp = dict(test_outputs=outputs, test_srcs=input_srcs)
         self.test_steps.append(outp)
         return outp
@@ -215,7 +213,7 @@ class NeustonModel(ptl.LightningModule):
         #self.log('RunResults',RRs)
         self.unloggable_dict['RunResults'] = RRs
         self.test_steps = []
-        #return dict(RunResults=RRs) # Note from Holly: I did not comment this out, it came like this.
+        #return dict(RunResults=RRs)
     
     def train_dataloader(self):
         return self.training_loader

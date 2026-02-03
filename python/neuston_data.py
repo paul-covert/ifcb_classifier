@@ -8,6 +8,7 @@ import random
 from torchvision import transforms, datasets
 from torch.utils.data.dataset import Dataset, IterableDataset
 from torch import Tensor
+from torch.nn import Module
 import pandas as pd
 
 # project imports
@@ -15,11 +16,101 @@ import ifcb
 from ifcb.data.adc import SCHEMA_VERSION_1
 from ifcb.data.stitching import InfilledImages
 
+# Holly's imports
+import torchvision.transforms as transforms
+from torch._inductor import sizevars
+import numpy as np
 
 ## TRAINING ##
 
-class NeustonDataset(Dataset):
+# Holly:
+class PanOrPad(transforms.Pad):
+    
+    def __init__(self, padding, fill=0, padding_mode="constant", random_crop=False):
+        super().__init__(padding, fill, padding_mode)
+        self.random_crop = random_crop
+        
+    def forward(self, img):
+        width, height = img.size
+        d_size = self.padding
+        padding_size = (0, 0)
+        transform_arr = []
+        if not (width >= d_size and height >= d_size):
+            if width < d_size and height < d_size:
+                padding_size = (d_size-width, d_size-height)
+            elif width >= d_size and height < d_size:
+                padding_size = (0, d_size-height)
+            elif width < d_size and height >= d_size:
+                padding_size = (d_size-width, 0)
+            transform_arr.append(transforms.Pad(padding=padding_size, fill=self.fill))
+        if self.random_crop:
+            transform_arr.append(transforms.RandomCrop(d_size))
+        else:
+            transform_arr.append(transforms.CenterCrop(d_size))
+        compose = transforms.Compose(transform_arr)
+        img = compose(img)
+        return img
 
+# Holly:
+class PadThenResize(transforms.Pad):
+    
+    def __init__(self, padding, fill=0, padding_mode="constant", only_resize_large=False):
+        super().__init__(padding, fill, padding_mode)
+        self.only_resize_large = only_resize_large
+    
+    def forward(self, img):
+        width, height = img.size
+        d_size = self.padding
+        padding_size = (0, 0)
+        transform_arr = []
+        if self.only_resize_large and width < d_size and height < d_size:
+            padding_size = (d_size-width, d_size-height)
+            transform_arr.append(transforms.Pad(padding=padding_size, fill=self.fill))
+            transform_arr.append(transforms.CenterCrop(d_size))
+        else:
+            if width < height:
+                padding_size = (height - width, 0)
+            else:
+                padding_size = (0, width - height)
+            transform_arr.append(transforms.Pad(padding=padding_size, fill=self.fill))
+            transform_arr.append(transforms.Resize([d_size,d_size]))
+        compose = transforms.Compose(transform_arr)
+        img = compose(img)
+        return img
+
+# Holly:
+class AddRedSquare(Module):
+    
+    def __init__(self, size):
+        super().__init__()
+        self.size = size
+    
+    def forward(self, img):
+        width, height = img.size
+        for i in np.arange(self.size):
+            if i >= width:
+                break
+            for j in np.arange(self.size):
+                if j >= height:
+                    break
+                img.putpixel((i, j),(255,0,0))
+        return img
+    
+# Holly (for testing purposes):
+class ShowImageAtRandomChance(Module):
+    
+    def __init__(self, chance):
+        super().__init__()
+        self.chance = chance
+    
+    def forward(self, img):
+        if random.randint(0, self.chance) == 0:
+            img.show()
+        return img
+            
+
+class NeustonDataset(Dataset):
+    
     def __init__(self, src, minimum_images_per_class=1, maximum_images_per_class=None, transforms=None, images_perclass=None):
         self.src = src
         if not images_perclass:
@@ -36,7 +127,8 @@ class NeustonDataset(Dataset):
         # CLASS MAXIMUM LIMITING
         self.maximum_images_per_class = maximum_images_per_class
         if maximum_images_per_class:
-            assert maximum_images_per_class > self.minimum_images_per_class
+            #assert maximum_images_per_class > self.minimum_images_per_class
+            # ^ Removed this, as these aren't mutually exclusive
             images_perclass__maxlimited = {label: sorted(random.sample(images,maximum_images_per_class)) if maximum_images_per_class<len(images) else images for label,images in images_perclass__minthresh.items()}
             images_perclass__final = images_perclass__maxlimited
             self.classes_limited_from_too_many_samples = [c for c in self.classes if len(images_perclass__maxlimited[c]) < len(images_perclass__minthresh[c])]
@@ -166,8 +258,9 @@ class NeustonDataset(Dataset):
                 d1_len -= 1
 
             #2) split images as per distribution
-            if seed:
-                random.seed(seed)
+            #if seed:
+            #print("SPLIT SEED: "+str(seed))
+            random.seed(seed) # If seed was set to None in argparsing, it is already randomized in neuston_net.
             d1_images = random.sample(images, d1_len)
             d2_images = sorted(list(set(images)-set(d1_images)))
             assert len(d1_images)+len(d2_images) == len(images)
@@ -258,8 +351,12 @@ class NeustonDataset(Dataset):
         path = self.images[index]
         target = self.targets[index]
         data = datasets.folder.default_loader(path)
+        #print(type(data), flush=True)
+        #print("before: "+str(data.size), flush=True)
         if self.transforms is not None:
             data = self.transforms(data)
+            #print(self.transforms, flush=True)
+        #print("after: "+str(data.size), flush=True)
         return data, target, path
 
     def __len__(self):
@@ -342,8 +439,23 @@ def parse_imgnorm(img_norm_arg):
 def get_trainval_transforms(args):
     # Transforms  #
     args.resize = 299 if args.MODEL == 'inception_v3' else 224
-    tform_resize = transforms.Resize([args.resize,args.resize])
-    base_tforms = [tform_resize, transforms.ToTensor()]
+    
+    #tform_resize = transforms.Resize([args.resize,args.resize])
+    #base_tforms = [tform_resize, transforms.ToTensor()]
+    
+    # Holly:
+    base_tforms = []
+    if args.redsquare > 0:
+        base_tforms.append(AddRedSquare(args.redsquare))
+    if args.sizing_mode == "resize":
+        base_tforms.append(transforms.Resize([args.resize,args.resize]))
+    elif args.sizing_mode in ["padresize", "padshrink"]:
+        base_tforms.append(PadThenResize(padding=args.resize, fill=args.padfill, only_resize_large=(args.sizing_mode == "padshrink")))
+    else: # "centre" or "random"
+        base_tforms.append(PanOrPad(padding=args.resize, fill=args.padfill, random_crop=(args.sizing_mode == "random")))
+    #base_tforms.append(ShowImageAtRandomChance(500))
+    base_tforms.append(transforms.ToTensor())
+    
     if args.img_norm:
         mean,std = parse_imgnorm(args.img_norm)
         tform_img_norm = transforms.Normalize(mean,std)

@@ -1,16 +1,6 @@
 #!/usr/bin/env python
 """the main thing"""
 
-# Version: 1.02
-
-# Note:
-# This is a modified version of the ifcb_classifier that was adapted to work with the latest version of PyTorch, as the current
-# "official" version is quite out of date and does not work on Windows.
-# Variables and parameters were simply modified up to the point where the program could run with no errors.
-# Additionally, the "accelerator" and "devices" parameters were added to the Trainers and "persistent_workers" was added and set
-# to True for the dataloaders.
-# - Holly
-
 # built in imports
 from shutil import copyfile
 import argparse
@@ -30,6 +20,9 @@ import ifcb
 from neuston_models import NeustonModel
 from neuston_callbacks import SaveValidationResults, SaveTestResults
 from neuston_data import get_trainval_datasets, IfcbBinDataset, ImageDataset
+
+# Holly's imports
+import random
 
 ## NOTES ##
 # https://pytorch-lightning.readthedocs.io/en/0.8.5/introduction_guide.html
@@ -69,7 +62,10 @@ def do_training(args):
         callbacks.append( EarlyStopping('val_loss', patience=args.estop) )
 
     # Set Seed. If args.seed is 0 ie None, a random seed value is used and stored
+    if args.seed == None:
+        args.seed = random.randint(0, 1000000)
     args.seed = seed_everything(args.seed or None)
+    print("SEED: "+str(args.seed))
 
     #if os.path.isfile(args.MODEL): #TODO: transfer learning option
     # see https://pytorch-lightning.readthedocs.io/en/stable/transfer_learning.html?highlight=predictions
@@ -87,10 +83,10 @@ def do_training(args):
     # TODO add to args classes removed by class_min and skipped/combined from class_config
 
     print('Loading Training Dataloader...')
-    training_loader = DataLoader(training_dataset, pin_memory=True, shuffle=True, persistent_workers=True,
+    training_loader = DataLoader(training_dataset, shuffle=True, persistent_workers=True, pin_memory=True,
                                  batch_size=args.batch_size, num_workers=args.loaders)
     print('Loading Validation Dataloader...')
-    validation_loader = DataLoader(validation_dataset, pin_memory=True, shuffle=False, persistent_workers=True,
+    validation_loader = DataLoader(validation_dataset, shuffle=False, persistent_workers=True, pin_memory=True,
                                    batch_size=args.batch_size, num_workers=args.loaders)
 
     # Gerry Rig Logger
@@ -119,13 +115,25 @@ def do_training(args):
 
     # Setup Model
     #classifier = NeustonModel(args)
+    classifier = None
+    model_path = args.outdir+"/"+args.model_id+".ptl"
+    #if args.continue_model and os.path.exists(model_path):
+    #    classifier = NeustonModel.load_from_checkpoint(model_path)
+    #    classifier.training_loader = training_loader
+    #    classifier.validation_loader = validation_loader
+    #else:
+    #    classifier = NeustonModel(args, training_loader, validation_loader)
     classifier = NeustonModel(args, training_loader, validation_loader)
     # TODO setup dataloaders in the model, allowing auto-batch-size optimization
     # see https://pytorch-lightning.readthedocs.io/en/stable/training_tricks.html#auto-scaling-of-batch-size
 
     # Do Training
-    #trainer.fit(classifier, train_dataloader=training_loader, val_dataloaders=validation_loader)
-    trainer.fit(classifier)
+    #trainer.fit(classifier, train_dataloaders=training_loader, val_dataloaders=validation_loader)
+    #trainer.fit(classifier, training_loader, validation_loader)
+    if args.continue_model and os.path.exists(model_path):
+        trainer.fit(classifier, ckpt_path=model_path)
+    else:
+        trainer.fit(classifier)
 
     # Copy best model
     checkpoint_path = trainer.checkpoint_callback.best_model_path
@@ -204,7 +212,6 @@ def do_run(args):
     # create trainer
     trainer = Trainer(deterministic=True,
                       #gpus=len(args.gpus) if args.gpus else None,
-                      accelerator='gpu', devices=1,
                       logger=False, #checkpoint_callback=False,
                       callbacks=run_results_callbacks,
                       )
@@ -265,7 +272,7 @@ def do_run(args):
                     continue
 
             bin_dataset = IfcbBinDataset(bin_fileset, classifier.hparams.resize, classifier.hparams.img_norm)
-            image_loader = DataLoader(bin_dataset, batch_size=args.batch_size,  persistent_workers=True,
+            image_loader = DataLoader(bin_dataset, batch_size=args.batch_size,
                                       pin_memory=True, num_workers=args.loaders)
 
             # skip empty bins
@@ -277,12 +284,18 @@ def do_run(args):
                 image_loaders.append(image_loader)
             else:
                 # Do runs one bin at a time
-                try: trainer.test(classifier, test_dataloaders=image_loader)
+                classifier.testing_loader = image_loader
+                #try: trainer.test(classifier, test_dataloaders=image_loader)
+                try: trainer.test(classifier)
                 except Exception as e:
                     error_bins.append((bin_obj,e))
 
         # Do Runs all at once
-        if args.gobig: print(); trainer.test(classifier, test_dataloaders=image_loaders)
+        #if args.gobig: print(); trainer.test(classifier, test_dataloaders=image_loaders)
+        if args.gobig: 
+            print()
+            classifier.testing_loader = image_loaders
+            trainer.test(classifier)
 
         # Final Statements
         print('RUN IS DONE')
@@ -317,7 +330,7 @@ def do_run(args):
         assert len(img_paths)>0, 'No images to process'
         image_dataset = ImageDataset(img_paths, resize=classifier.hparams.resize, input_src=args.SRC)
         image_loader = DataLoader(image_dataset, batch_size=args.batch_size,
-                                  pin_memory=True, num_workers=args.loaders)
+                                  persistent_workers=True, num_workers=args.loaders)
 
         #trainer.test(classifier,test_dataloaders=image_loader)
         classifier.testing_loader = image_loader
@@ -361,7 +374,7 @@ def argparse_nn_train(train_subparser):
     # TODO layer freezing and transfer learning params.
 
     data = train_subparser.add_argument_group(title='Dataset Adjustments', description=None)
-    data.add_argument('--seed', default=0, type=int, help='Set a specific seed for deterministic output & dataset-splitting reproducability.')
+    data.add_argument('--seed', default=None, type=int, help='Set a specific seed for deterministic output & dataset-splitting reproducability.')
     data.add_argument('--split', metavar='T:V', default='80:20', help='Ratio of images per-class to split randomly into Training and Validation datasets. Randomness affected by SEED. Default is "80:20"')
     data.add_argument('--class-config', metavar=('CSV', 'COL'), nargs=2, help='Skip and combine classes as defined by column COL of a special CSV configuration file')
     data.add_argument('--class-min', metavar='MIN', default=2, type=int, help='Exclude classes with fewer than MIN instances. Default is 2')
@@ -404,6 +417,18 @@ def argparse_nn_train(train_subparser):
     #optim.add_argument('--weight-decay', default='?', help="not sure where this comes in")
     #optim.add_argument('--class-norm', help='Bias results to emphasize smaller classes')
     #optim.add_argument('--batch-norm', help='i forget what this is exactly')
+    
+    # Holly's additions
+    out.add_argument('--sizing_mode', choices=['resize', 'centre', 'random', 'padresize', 'padshrink'], default='resize',
+                     help='Sizing modes:\n'
+                         +'\'resize\': Resizes the image to fit the model input. Distorts the aspect ratio, but not not require padding.\n'
+                         +'\'centre\': Pans the image to the centre of the bounds and pads the image if it\'s too small or crops the image if it\'s too large.\n'
+                         +'\'random\': The same as \'centre\', but the panning is random.\n'
+                         +'\'padresize\': Pads the images to make them square-shaped, then resizes them.\n'
+                         +'\'padshrink\': Pads the smaller dimension and resizes the image if one or both dimensions is smaller than the required size; otherwise the same as \'centre\'.')
+    out.add_argument('--padfill', default=200, type=int, help='Padding greyscale fill value if sizing mode involved padding. Default is 200 (a fairly light grey similar to the background shade of IFCB images).')
+    out.add_argument('--redsquare', default=0, type=int, help='Adds a red square of the specified size to the top left corner of the image before any other transformation operations.')
+    out.add_argument('--continue_model', default=False, action='store_true', help='Include this tag to continue fitting the pre-existing model specified by the model ID (assuming there is one).')
 
 
 def argparse_nn_run(run_subparser):
@@ -444,8 +469,9 @@ def argparse_nn_runtimeparams(args):
     # So if gpus == [3,4] then device "cuda:0" == GPU no. 3
     #                      and device "cuda:1" == GPU no. 4
     if torch.cuda.is_available():
+        #print(os.environ)
         #args.gpus = [int(gpu) for gpu in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
-        args.gpus = [int(os.environ['PYTORCH_NVML_BASED_CUDA_CHECK'])] # This might not be correct, but it works.
+        args.gpus = [int(os.environ['PYTORCH_NVML_BASED_CUDA_CHECK'])]
     else: args.gpus = None
 
     # parse args.outdir value
